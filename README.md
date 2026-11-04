@@ -254,17 +254,35 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
 
 ## How I Used AI
 
-**Moment 1**
+**Moment 1 — choosing my acceptance criteria**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help making Milestone 2 easier, without the AI writing
+  my criteria for me.
+- *What came back:* Instead of finished criteria, Claude gave me
+  multiple-choice options for the target in each area (e.g. 0, 1 or 2 false
+  positives out of 10; a 0.20 vs 0.30 score gap), with the trade-off of each.
+  When I asked it to also draft the "why" lines, it did, and pointed out that
+  my own clearly-human sample already scored 0.44 on the model signal.
+- *What I changed:* I picked every number myself — including keeping "at most
+  2 of 10" when it asked me to confirm I could defend it — and chose to reject
+  enormous text with a 400 instead of scoring it. I reviewed the reasons
+  before committing them.
 
-**Moment 2**
+**Moment 2 — building the style signal and the combining rule**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* To build the three stylometry measures and test both
+  signals on the same inputs, including formal human writing and
+  lightly-edited AI.
+- *What came back:* A side-by-side table. It showed word variety runs
+  backwards from the starter's assumption (the AI text had *more* varied
+  vocabulary), and that my formal human sample scored 0.64 combined — just
+  under the default 0.65 AI threshold. It offered four combining rules and
+  three threshold settings.
+- *What I changed:* I chose a plain 50/50 average over the model-weighted and
+  "disagreement guard" options, and raised the AI threshold from 0.65 to 0.70
+  so formal human writing lands in "unsure" instead of one wobble from an
+  accusation. I also picked the wording of all three labels from the options
+  it gave.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
