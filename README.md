@@ -39,7 +39,13 @@
 <!-- The path a submission takes, from arriving to the label a reader sees.
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
-
+1. `POST /submit` (`app.py::submit`) receives JSON with `text` and `creator_id`.
+2. Missing, empty or too-short text is refused with a `400` and logged; nothing else runs.
+3. Signal one, `detector.py::model_signal`, scores how predictable the text is to GPT-2 (0–1, higher = more AI-like).
+4. Signal two, `stylometry.py::style_signal`, scores the shape of the text — sentence-length spread, word variety, punctuation (0–1, higher = more AI-like).
+5. `scoring.py::combine_signals` combines the two into one confidence score.
+6. `scoring.py::score_to_label` turns that score into one of three labels and the sentence a reader sees.
+7. A `content_id` is created, the decision is written to `logs/audit.jsonl`, and the JSON response goes back. If the writer disagrees, `POST /appeal` with that `content_id` moves it to `under_review`.
 
 ---
 
@@ -53,19 +59,41 @@
 
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How *predictable* the text is to a language model.
+`detector.py::model_signal` runs GPT-2 locally, computes perplexity (how
+surprised the model is, word by word), and maps it to 0–1 with a logistic
+curve centred on perplexity 45. Low perplexity → high score → more AI-like.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** A language model
+writes by picking likely next words, so its output is text a model finds easy
+to predict. People make odder choices — a specific name, an abrupt turn, a
+word that's slightly wrong but theirs.
 
-**What it can't see:**
+**What it can't see:** Who wrote it. Predictability is not authorship. It
+rewards common words in ordinary sentences, so plain writers — second-language
+writers, younger writers, anyone writing simply on purpose — score as
+machine-like. The reverse fails too: AI text asked to be ornate, or with rare
+words swapped in, scores as human because rare words are what the model can't
+predict. It also only reads the first ~400 tokens.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The *shape* of the text, without reading a word of it:
+how much sentence lengths vary, how much vocabulary repeats (unique words ÷
+total words), and how much varied punctuation (commas, semicolons, dashes)
+appears. Built in `stylometry.py::style_signal`.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** Generated prose tends
+toward even, mid-length sentences and a safe, narrower vocabulary. Human
+writing is lumpier — a three-word sentence next to a forty-word one, dashes
+and asides, a repeated word for effect.
 
-**What it can't see:**
+**What it can't see:** Meaning. Anything that changes the shape without
+changing the substance moves it: splitting or merging sentences, adding typos
+(which raise word variety), sprinkling in dashes, pasting in a quotation. All
+of that is cheap to do on purpose. It is also length-sensitive — word variety
+falls naturally as text gets longer — and a one- or two-sentence submission
+barely has a shape to measure.
 
 ### The combining rule
 

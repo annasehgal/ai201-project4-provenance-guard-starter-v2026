@@ -30,6 +30,7 @@ from flask import Flask, jsonify, request
 
 import audit
 import config
+import detector
 
 app = Flask(__name__)
 
@@ -200,20 +201,26 @@ def submit():
     a malformed input is one of the most common real failures there is.
     """
 
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}
     text = payload.get("text")
-    creator_id = payload.get("creator_id", "unknown")
+    creator_id = payload.get("creator_id") or "unknown"
 
-    #step 3 - one real signal that we first test from the terminal
-    # python detector.py "some text"
-    import detector
-    model_score = detector.model_signal(text)
-
-    # Step 2 - JSON goes in: pull text and creator_id out of the body
+    # Bad input is refused before any signal runs.
     if not isinstance(text, str) or not text.strip():
+        audit.log_rejection(creator_id=creator_id, reason="missing_or_empty_text")
         return jsonify({"error": "bad_request", "message": "Send JSON with a non-empty \"text\"."}), 400
 
-    # Step 4 - log the decision. The content_id is what /appeal needs later.
+    # Signal one. Confidence and label are placeholders until Milestones 4 and 5.
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError:
+        # The detector refuses fewer than three tokens.
+        audit.log_rejection(creator_id=creator_id, reason="text_too_short")
+        return jsonify({"error": "bad_request", "message": "Text is too short to judge — send a few sentences at least."}), 400
+
+    # The content_id is what /appeal needs later.
     content_id = f"c_{uuid.uuid4().hex[:12]}"
     audit.log_decision(
         content_id=content_id,
@@ -222,29 +229,16 @@ def submit():
         status="decided",
     )
 
-    #step 1 - the route answers, Hardcoded without any logic yet.
     return jsonify({
-        "content_id": "hardcoded",
+        "content_id": content_id,
         "creator_id": creator_id,
         "guess": "unsure",
         "confidence": model_score,
-        "label": "not build yet",
-        "model_score": model_score ,
+        "label": "not built yet",
+        "model_score": model_score,
         "style_score": None,
+        "status": "decided",
     }), 200
-
-    
-
-
-    # TODO: delete this and build the route.
-    # return jsonify({
-    #     "error": "not_implemented",
-    #     "message": "POST /submit isn't built yet — see the TODO in app.py.",
-    #     "you_sent": {
-    #         "text_length": len(payload.get("text", "")),
-    #         "creator_id": payload.get("creator_id"),
-    #     },
-    # }), 501
 
 
 @app.post("/appeal")
