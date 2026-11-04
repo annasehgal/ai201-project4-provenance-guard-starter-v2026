@@ -100,9 +100,28 @@ barely has a shape to measure.
 <!-- Write the rule in words, then give the numbers. What happens when the two
      signals disagree? -->
 
-**The rule:**
+**The rule:** A plain weighted average of the two signals, 50/50. Both
+signals point the same way (higher = more AI-like), so the combined score does
+too. When they disagree, the average lands in the middle on purpose: two
+methods disagreeing is uncertainty, and "unsure" is the honest answer.
 
-**The numbers:**
+The style signal itself averages three measures equally, each mapped to 0–1
+AI-ness: sentence-length spread (low = AI), word variety (high = AI — this
+runs the opposite way to what I expected; on my samples the AI text avoided
+repeating words and the human text didn't), and punctuation per word (low =
+AI). Under 3 sentences, spread counts as neutral (0.5).
+
+**The numbers:** `WEIGHT_MODEL_SIGNAL = 0.5`, `WEIGHT_STYLE_SIGNAL = 0.5`,
+`HUMAN_THRESHOLD = 0.35`, `AI_THRESHOLD = 0.70` (in `config.py`). I raised the
+AI threshold from 0.65 to 0.70 because my formal human sample scored 0.64 —
+one model wobble from being accused.
+
+| Input | model | style | combined | guess |
+|---|---|---|---|---|
+| clearly AI | 0.754 | 0.889 | 0.822 | ai |
+| clearly human | 0.445 | 0.075 | 0.260 | human |
+| formal human | 0.677 | 0.596 | 0.637 | unsure |
+| lightly-edited AI | 0.726 | 0.833 | 0.779 | ai |
 
 **Where it lives:** `scoring.py::combine_signals`
 
@@ -110,8 +129,14 @@ barely has a shape to measure.
      somewhere else, say where. -->
 
 **A case where my two signals split, and what my rule does with it:**
-
-
+My clearly-human sample (a casual first-person story) scored 0.445 on the
+model signal — nearly unsure — but 0.075 on the style signal, because its
+sentence lengths swing widely and it's full of dashes and commas. The 50/50
+average puts it at 0.260, which is high-confidence human. The style signal
+pulled it to the right side here; the risk is the reverse case, where plain
+human writing scores AI-ish on both signals and nothing pulls it back. That is
+the formal human sample (0.637), and the 0.70 threshold is what keeps it in
+unsure.
 
 ---
 

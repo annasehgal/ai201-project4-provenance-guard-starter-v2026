@@ -64,8 +64,15 @@ def sentence_length_spread(text: str) -> float:
     `stdev` raises on fewer than two values. Decide what that should return
     before the attack set decides for you.
     """
-    # TODO: replace this
-    return 0.0
+    # Coefficient of variation: stdev / mean of words per sentence.
+    # 0 = every sentence the same length (AI-ish); higher = lumpier (human-ish).
+    # Fewer than two sentences has no spread to measure, so it returns 0.0 and
+    # style_signal treats that measure as neutral instead of as evidence.
+    lengths = [len(words(s)) for s in sentences(text)]
+    lengths = [n for n in lengths if n > 0]
+    if len(lengths) < 2:
+        return 0.0
+    return statistics.stdev(lengths) / statistics.mean(lengths)
 
 
 def type_token_ratio(text: str) -> float:
@@ -80,8 +87,17 @@ def type_token_ratio(text: str) -> float:
     directly comparable on it, and if your test inputs vary a lot in length,
     that alone can look like a signal.
     """
-    # TODO: replace this
-    return 0.0
+    # Averaged over a sliding 50-word window (moving-average TTR) so a long
+    # text isn't marked down just for being long. Under 50 words it falls back
+    # to plain unique / total.
+    ws = words(text)
+    if not ws:
+        return 0.0
+    window = 50
+    if len(ws) <= window:
+        return len(set(ws)) / len(ws)
+    ratios = [len(set(ws[i:i + window])) / window for i in range(len(ws) - window + 1)]
+    return sum(ratios) / len(ratios)
 
 
 def punctuation_density(text: str) -> float:
@@ -94,8 +110,14 @@ def punctuation_density(text: str) -> float:
         more interesting than full stops, because they vary more between
         writers.
     """
-    # TODO: replace this
-    return 0.0
+    # Only the marks that vary between writers: commas, semicolons, colons,
+    # dashes, brackets, quotes, ! and ?. Full stops are left out — every text
+    # has them. Returned per word, so higher = more varied punctuation.
+    ws = words(text)
+    if not ws:
+        return 0.0
+    marks = re.findall(r"[,;:\u2014\u2013()\"\u201c\u201d!?]|(?<=\s)-(?=\s)", text)
+    return len(marks) / len(ws)
 
 
 # ── Combining them ───────────────────────────────────────────────────────────
@@ -122,8 +144,27 @@ def style_signal(text: str) -> float:
     you trust it. Plain and ordinary, not formal: formal prose reads as *human*
     to signal one, and it is plain writing that gets accused.
     """
-    # TODO: replace this
-    return 0.5
+    # Each measure is mapped onto 0–1 "AI-ness" with a clipped straight line,
+    # calibrated on the samples/ texts, then the three are averaged equally.
+    #
+    #   spread  low = AI-ish.   CV 0.30 -> 1.0, CV 0.90 -> 0.0
+    #   ttr     HIGH = AI-ish.  0.78 -> 0.0, 0.93 -> 1.0
+    #           (runs the opposite way to the usual assumption: on my samples
+    #           the AI text avoided repeating words and the human text didn't)
+    #   punct   low = AI-ish.   0.12/word -> 0.0, 0.04/word -> 1.0
+    #
+    # Under 3 sentences, spread says nothing reliable, so it counts as 0.5.
+    def clip(x):
+        return min(max(x, 0.0), 1.0)
+
+    if len(sentences(text)) < 3:
+        spread_ai = 0.5
+    else:
+        spread_ai = clip((0.90 - sentence_length_spread(text)) / 0.60)
+    ttr_ai = clip((type_token_ratio(text) - 0.78) / 0.15)
+    punct_ai = clip((0.12 - punctuation_density(text)) / 0.08)
+
+    return round((spread_ai + ttr_ai + punct_ai) / 3, 4)
 
 
 if __name__ == "__main__":
@@ -139,4 +180,3 @@ if __name__ == "__main__":
     print(f"type_token_ratio         {type_token_ratio(text)}")
     print(f"punctuation_density      {punctuation_density(text)}")
     print(f"style_signal             {style_signal(text)}   (higher = more likely AI)")
-    print("\nAll zeros? These are stubs — Milestone 4 is where you build them.")

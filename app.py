@@ -31,6 +31,8 @@ from flask import Flask, jsonify, request
 import audit
 import config
 import detector
+import scoring
+import stylometry
 
 app = Flask(__name__)
 
@@ -215,7 +217,7 @@ def submit():
         audit.log_rejection(creator_id=creator_id, reason="text_too_long", length=len(text))
         return jsonify({"error": "bad_request", "message": f"Text is too long — send at most {config.MAX_TEXT_CHARS:,} characters."}), 400
 
-    # Signal one. Confidence and label are placeholders until Milestones 4 and 5.
+    # Signal one.
     try:
         model_score = detector.model_signal(text)
     except ValueError:
@@ -223,24 +225,31 @@ def submit():
         audit.log_rejection(creator_id=creator_id, reason="text_too_short")
         return jsonify({"error": "bad_request", "message": "Text is too short to judge — send a few sentences at least."}), 400
 
+    style_score = stylometry.style_signal(text)
+    combined = scoring.combine_signals(model_score, style_score)
+    guess, label = scoring.score_to_label(combined)
+
     # The content_id is what /appeal needs later.
     content_id = f"c_{uuid.uuid4().hex[:12]}"
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
-        guess="unsure",
+        guess=guess,
         model_score=model_score,
+        style_score=style_score,
+        combined_score=combined,
+        label=label,
         status="decided",
     )
 
     return jsonify({
         "content_id": content_id,
         "creator_id": creator_id,
-        "guess": "unsure",
-        "confidence": model_score,
-        "label": "not built yet",
+        "guess": guess,
+        "confidence": combined,
+        "label": label,
         "model_score": model_score,
-        "style_score": None,
+        "style_score": style_score,
         "status": "decided",
     }), 200
 
