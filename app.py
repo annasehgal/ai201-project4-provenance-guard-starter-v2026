@@ -211,6 +211,9 @@ def submit():
     if not isinstance(text, str) or not text.strip():
         audit.log_rejection(creator_id=creator_id, reason="missing_or_empty_text")
         return jsonify({"error": "bad_request", "message": "Send JSON with a non-empty \"text\"."}), 400
+    if len(text) > config.MAX_TEXT_CHARS:
+        audit.log_rejection(creator_id=creator_id, reason="text_too_long", length=len(text))
+        return jsonify({"error": "bad_request", "message": f"Text is too long — send at most {config.MAX_TEXT_CHARS:,} characters."}), 400
 
     # Signal one. Confidence and label are placeholders until Milestones 4 and 5.
     try:
@@ -225,6 +228,7 @@ def submit():
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
+        guess="unsure",
         model_score=model_score,
         status="decided",
     )

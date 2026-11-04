@@ -152,11 +152,20 @@ barely has a shape to measure.
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d '{"text": "The importance of effective time management cannot be overstated in today'"'"'s fast-paced work environment. Professionals who develop strong organizational habits are better positioned to meet deadlines and reduce stress.", "creator_id": "anna"}'
 ```
 
 ```json
-
+{
+  "confidence": 0.7613,
+  "content_id": "c_43c383ee4de3",
+  "creator_id": "anna",
+  "guess": "unsure",
+  "label": "not built yet",
+  "model_score": 0.7613,
+  "status": "decided",
+  "style_score": null
+}
 ```
 
 **An appeal**
@@ -174,11 +183,26 @@ $ curl -X POST http://127.0.0.1:5000/appeal \
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=1"
 ```
 
 ```json
-
+{
+  "count": 1,
+  "entries": [
+    {
+      "combined_score": null,
+      "content_id": "c_43c383ee4de3",
+      "creator_id": "anna",
+      "guess": "unsure",
+      "label": null,
+      "model_score": 0.7613,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-11-04T02:46:13+00:00"
+    }
+  ]
+}
 ```
 
 ---
