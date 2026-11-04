@@ -42,63 +42,43 @@ Two things worth knowing before you pick numbers:
   a **miss**.
 
 ---
-## 1.
+## 1. False positives on my own writing
 
-<!-- Your criterion. It must name a number. -->
+Of 10 pieces I wrote myself, **at most 2** receive the high-confidence AI label, in each of 3 trials.
 
-
-
-**Why this target:**
-
-
+**Why this target:** On a writing site, wrongly accusing a real writer costs far more than missing some AI text, so false positives get the tightest limit of any error here. I chose 2 rather than 0 or 1 because my own "clearly human" sample already scored 0.44 on the model signal alone, so plain human writing really does drift toward the AI end; 0 would be a promise I can't back. But 2 is the ceiling, not the goal, and every writer inside it still has the appeal path.
 
 ---
 
-## 2.
+## 2. Clearly-AI and clearly-human text score apart
 
-<!-- Your criterion. -->
+Across 5 clearly AI-generated texts and 5 clearly human-written texts, the **mean combined score of the AI texts is at least 0.30 higher** than the mean of the human texts, in each of 3 trials.
 
-
-
-**Why this target:**
-
-
+**Why this target:** If the two groups score only a little apart, small random wobble from the model can push a piece across a label boundary, and the labels stop meaning anything. A gap of 0.30 is roughly the width of my unsure band, so clearly-AI and clearly-human text should land on opposite sides of it rather than both ending up in the middle.
 
 ---
 
-## 3.
+## 3. Every label is reachable
 
-<!-- Your criterion. -->
+Of 9 inputs chosen across the range (3 I judge clearly AI, 3 clearly human, 3 borderline), **each of the three labels** — high-confidence human, unsure, high-confidence AI — **appears at least 2 times**, in each of 3 trials.
 
-
-
-**Why this target:**
-
-
+**Why this target:** A label that never appears is a bug, not a design choice. Asking for each label twice rather than once means no label is reached by a single lucky input sitting right on a boundary, and it checks that "unsure" is a real band that borderline text lands in, not a gap the score skips over.
 
 ---
 
-## 4.
+## 4. Appeals always change status and are always recorded
 
-<!-- Your criterion. -->
+Of 5 appeals sent with real `content_id`s, **5 of 5** return 200, set the status to `under_review`, and show up in `GET /log` next to the original decision. An appeal with a made-up `content_id` returns **404** and adds no `under_review` entry.
 
-
-
-**Why this target:**
-
-
+**Why this target:** The appeal is the only thing between a wrong accusation and nothing at all, so a lost appeal is the worst failure this service can have for the writer, and anything below 100% isn't acceptable. The fake-id check matters because a typo in a content_id should fail loudly with a 404, not look like it worked while recording nothing.
 
 ---
 
-## 5.
+## 5. Bad input never crashes the service
 
-<!-- Your criterion. -->
+Of 4 bad requests — no `text` field, empty `text` (`""`), a body that isn't a JSON object, and `text` of 50,000 characters — **4 of 4 return 400** with an error message, and **0** return a 500.
 
-
-
-**Why this target:**
-
-
+**Why this target:** A crash tells the writer nothing and leaves no useful trace, and bad input is the first thing an attacker will send. A clear 400 tells the caller what to fix. Enormous text is refused rather than scored because the detector only reads the first ~400 tokens anyway, so a label on 50,000 characters would be judging a small slice of the work as if it were the whole thing.
 
 ---
 
