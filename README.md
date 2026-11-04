@@ -40,7 +40,7 @@
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
 1. `POST /submit` (`app.py::submit`) receives JSON with `text` and `creator_id`.
-2. Missing, empty or too-short text is refused with a `400` and logged; nothing else runs.
+2. Missing, empty, too-short or too-long (over 20,000 characters) text is refused with a `400` and logged; nothing else runs.
 3. Signal one, `detector.py::model_signal`, scores how predictable the text is to GPT-2 (0–1, higher = more AI-like).
 4. Signal two, `stylometry.py::style_signal`, scores the shape of the text — sentence-length spread, word variety, punctuation (0–1, higher = more AI-like).
 5. `scoring.py::combine_signals` combines the two into one confidence score.
@@ -79,21 +79,26 @@ predict. It also only reads the first ~400 tokens.
 ### Signal two — the style signal
 
 **What it measures:** The *shape* of the text, without reading a word of it:
-how much sentence lengths vary, how much vocabulary repeats (unique words ÷
-total words), and how much varied punctuation (commas, semicolons, dashes)
-appears. Built in `stylometry.py::style_signal`.
+how much sentence lengths vary (stdev ÷ mean of words per sentence), how much
+vocabulary repeats (unique words ÷ total words, averaged over 50-word
+windows), and how much varied punctuation (commas, semicolons, colons, dashes,
+brackets, quotes, ! and ?) appears per word. Built in
+`stylometry.py::style_signal`.
 
 **Why that might differ between human and AI writing:** Generated prose tends
-toward even, mid-length sentences and a safe, narrower vocabulary. Human
-writing is lumpier — a three-word sentence next to a forty-word one, dashes
-and asides, a repeated word for effect.
+toward even, mid-length sentences and plain punctuation. Human writing is
+lumpier — a three-word sentence next to a forty-word one, dashes and asides.
+I expected AI to have narrower vocabulary too, but on my samples it was the
+opposite: the AI text avoided repeating words, while the human text repeated
+"I", "the" and names, so high word variety counts as AI-like.
 
 **What it can't see:** Meaning. Anything that changes the shape without
-changing the substance moves it: splitting or merging sentences, adding typos
-(which raise word variety), sprinkling in dashes, pasting in a quotation. All
-of that is cheap to do on purpose. It is also length-sensitive — word variety
-falls naturally as text gets longer — and a one- or two-sentence submission
-barely has a shape to measure.
+changing the substance moves it: splitting or merging sentences, sprinkling
+in dashes and commas, pasting in a quotation. All of that is cheap to do on
+purpose. Typos raise word variety, which my signal reads as *more* AI-like —
+so a human with messy spelling could be pushed toward an accusation. Under 3
+sentences, sentence-length spread can't be measured at all and counts as
+neutral.
 
 ### The combining rule
 
