@@ -149,16 +149,24 @@ unsure.
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.35 (inclusive) | We think this was probably written by a person. |
+| unsure | above 0.35, below 0.70 | Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review. |
+| high-confidence AI | 0.70 – 1.00 (inclusive) | Our check suggests this was likely generated with AI. Automated checks can be wrong — if you wrote this yourself, you can ask for a review and a person will look at it. |
+
+The text lives in `scoring.py` (`LABEL_HUMAN`, `LABEL_UNSURE`, `LABEL_AI`).
+All three are reachable: `clearly_human.json` scored 0.260 (human),
+`formal_human.json` 0.637 (unsure), `clearly_ai.json` 0.822 (AI).
 
 **Why I worded the "unsure" one this way:**
 <!-- It's the hardest of the three. It has to admit uncertainty without
      sounding like an accusation, because the person reading it may well have
      written every word themselves. -->
 
-
+It describes what the *check* did ("gave mixed results"), not what the writer
+did, so it can't be read as an accusation. "We're not making a call" tells
+them nothing bad has happened, and offering a review gives them something to
+do if it still bothers them — without implying they need to defend
+themselves.
 
 ---
 
@@ -177,19 +185,19 @@ unsure.
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "The importance of effective time management cannot be overstated in today'"'"'s fast-paced work environment. Professionals who develop strong organizational habits are better positioned to meet deadlines and reduce stress.", "creator_id": "anna"}'
+  -d @samples/clearly_ai.json
 ```
 
 ```json
 {
-  "confidence": 0.7613,
-  "content_id": "c_43c383ee4de3",
-  "creator_id": "anna",
-  "guess": "unsure",
-  "label": "not built yet",
-  "model_score": 0.7613,
+  "confidence": 0.8217,
+  "content_id": "c_072ce8ceab20",
+  "creator_id": "demo_instructor",
+  "guess": "ai",
+  "label": "Our check suggests this was likely generated with AI. Automated checks can be wrong \u2014 if you wrote this yourself, you can ask for a review and a person will look at it.",
+  "model_score": 0.7544,
   "status": "decided",
-  "style_score": null
+  "style_score": 0.8891
 }
 ```
 
@@ -198,33 +206,45 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id": "c_072ce8ceab20", "reasoning": "I wrote this myself for a workplace newsletter. It sounds formal because that is the house style."}'
 ```
 
 ```json
-
+{
+  "content_id": "c_072ce8ceab20",
+  "message": "Thanks \u2014 your appeal has been recorded and a person will review this piece.",
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=1"
+$ curl "http://127.0.0.1:5000/log?limit=2"
 ```
 
 ```json
 {
-  "count": 1,
+  "count": 2,
   "entries": [
     {
-      "combined_score": null,
-      "content_id": "c_43c383ee4de3",
-      "creator_id": "anna",
-      "guess": "unsure",
-      "label": null,
-      "model_score": 0.7613,
+      "combined_score": 0.8217,
+      "content_id": "c_072ce8ceab20",
+      "creator_id": "demo_instructor",
+      "guess": "ai",
+      "label": "Our check suggests this was likely generated with AI. Automated checks can be wrong \u2014 if you wrote this yourself, you can ask for a review and a person will look at it.",
+      "model_score": 0.7544,
       "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-11-04T02:46:13+00:00"
+      "style_score": 0.8891,
+      "timestamp": "2026-11-04T02:52:25+00:00"
+    },
+    {
+      "content_id": "c_072ce8ceab20",
+      "creator_id": "demo_instructor",
+      "event": "appeal",
+      "reasoning": "I wrote this myself for a workplace newsletter. It sounds formal because that is the house style.",
+      "status": "under_review",
+      "timestamp": "2026-11-04T02:52:25+00:00"
     }
   ]
 }
