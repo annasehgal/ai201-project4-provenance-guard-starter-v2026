@@ -295,24 +295,35 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 5 per minute, 50 per day
 
 **Why those numbers and not others:**
 <!-- Think about two people: a real writer submitting their own work a few
      times an hour, and a script sending a thousand variations to map your
      thresholds. Your numbers have to be liveable for the first and hostile to
      the second. -->
+A real writer submits their own piece, maybe edits it and checks again, so a
+few submissions an hour. Five a minute leaves room for a quick
+resubmit-after-a-typo burst without them ever seeing a 429. Fifty a day covers
+even a heavy day of drafting. A script trying to map my 0.35 / 0.70 thresholds
+needs hundreds or thousands of variations. At 5/minute that takes hours instead
+of seconds, and the 50/day cap means one caller can't finish the job in a day.
+I lowered the starter's 10/minute and 200/day because nothing a real writer
+does needs 200 checks a day. Those numbers mostly helped a prober.
 
-**What a caller counts as:** <!-- per address, or per creator_id? They fail
-differently — one script can look like a thousand callers, and one household
-can look like one. -->
+**What a caller counts as:** per `creator_id`, falling back to IP address
+when no creator_id is sent. That fits a household or classroom sharing one
+address, since each writer gets their own budget. The weakness is that
+creator_id is just a string the caller picks, so a script can rotate it
+(`bot1`, `bot2`, …) and look like a thousand separate writers. The per-address
+fallback only catches callers that leave the field out.
 
 **The run of status codes when I pushed past it:**
 
 <!-- python run_attacks.py --flood 15 -->
 
 ```
-
+200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
 ```
 
 ---
