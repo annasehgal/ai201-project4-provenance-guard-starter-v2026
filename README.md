@@ -289,6 +289,42 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
   accusation. I also picked the wording of all three labels from the options
   it gave.
 
+**Moment 3 (unit 8): reading the attack results and the diagnoses**
+
+- *What I asked for:* Help marking the 56 attacks held or broke, then
+  working out the stage and mechanism behind every failure.
+- *What came back:* Claude proposed a held/broke rule for each family and
+  marked the table against it, with judgment calls flagged (e.g. whether
+  "unsure" counts as an evasion getting through). For the diagnoses it broke
+  every failing text down into the three style measures, which showed the
+  common pattern: both signals read plain writing as AI. I went through all
+  six diagnoses with it one at a time. When I asked it to double-check, it
+  re-scored EV01 with the typos fixed and found its own claim was wrong: it
+  had said typos raised word variety, but variety didn't move (0.939 both
+  ways). Signal one was what broke (0.164 → 0.669).
+- *What I changed:* I agreed or pushed back on each diagnosis before it went
+  in, kept my strict rule that "unsure" = escaped for evasions, and kept the
+  corrected EV01 explanation. For criterion 2 I ran the "argue the opposite
+  verdict" prompt, then the leave-one-out check it pointed to. I kept MET
+  but added that it passes by 0.004 and that the goal in my "why" line wasn't
+  achieved.
+
+**Moment 4 (unit 8): choosing the one improvement**
+
+- *What I asked for:* To choose the improvement together, with Claude asking
+  me rather than deciding.
+- *What came back:* It simulated nine single changes on my recorded scores
+  (two thresholds each way, two reweightings, two punctuation recalibrations,
+  and route validation) and gave me the four that mattered, each with its
+  predicted cost. The real after-run matched the prediction exactly, plus
+  PI03, which it flagged.
+- *What I changed:* I picked AI threshold 0.80 over the reweight (which had
+  the best raw count, 16 → 11) because the reweight still accused FP03 and
+  FP04, and over route validation because it fixed the smallest problem. I
+  decided PI03 stays HELD with a footnote. My ten pieces of writing for
+  criterion 1 are mine and unedited; I chose to reuse them for criteria 2 and
+  3 rather than use famous published text the model has memorised.
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -911,13 +947,73 @@ threshold. MF04, MF05 and RQ06 are route problems a threshold can't touch.
 <!-- For each attack still getting through and each criterion still missed:
      what you'd do, and why you stopped. -->
 
+After the improvement, 12 attacks still break and criterion 3 is still
+missed. Grouped by the stage that would need to change:
 
+**Criterion 3 (MISSED): `human` is unreachable for ordinary writing.**
+*What I'd do:* recalibrate signal two, not the threshold. Its punctuation
+measure only reaches "human" above 0.12 marks per word, which is above all
+10 of my pieces, and its spread measure scores evenly-sized short pieces as
+AI, so the style score never goes below ~0.40 for real writing. I'd collect
+a larger set of real human writing (other people's, not just mine), set each
+measure's cut-points from where that writing actually falls, and only then
+revisit `HUMAN_THRESHOLD`. *Why I stopped:* the unit allows one change, and I
+spent it on the false accusations. My simulation also showed that simply
+moving the punctuation cut-point (0.12 → 0.06) didn't fix it, so this needs
+new calibration data, not a quick edit. That same data would also fix how
+fragile criterion 2 is (its 0.004 margin).
+
+**Evasions that change the shape (EV02, EV06, EV07) and EV03, EV09, EV10.**
+*What I'd do:* nothing to the threshold. EV03, EV09 and EV10 only broke
+because of my 0.80 line, and undoing that brings the false accusations back.
+For EV02, EV06 and EV07, signal two can't tell real shape from shape added
+on purpose. That's its built-in blind spot, so the honest fix is a third
+signal that reads something other than shape or word predictability, not
+re-tuning this one. *Why I stopped:* a new signal is a new system, and it
+would make before and after impossible to compare.
+
+**Evasions that fool signal one (EV01 typos, EV08 short text).**
+*What I'd do:* for EV08, refuse to give *any* confident label below a
+minimum length (around 40 words) and say "too short to judge." For EV01, I
+tested that fixing the typos takes the model score from 0.164 back to 0.669,
+but spell-correcting before scoring would also make real writers who make
+typos look *more* like AI, so I wouldn't ship that without testing it on
+human writing first. *Why I stopped:* one change per unit, and the typo fix
+could hurt the writers I just protected.
+
+**EV05 (heavily human-edited AI).** I'd leave it. "Unsure" is an honest
+answer for text that's partly human, and it counts as broke only because of
+my strict rule for evasions.
+
+**Junk that still gets a verdict (MF04 punctuation → human, MF05 `aaaa…` →
+ai at 0.916).** *What I'd do:* validate in the route. Refuse text where
+signal two finds no readable words (MF04), or where one "word" is
+implausibly long or the text is a single repeated character (MF05), with a
+400 that says "we couldn't find enough writing to check." MF06 and MF07 are
+"unsure" now, but only because 0.75 and 0.70 happen to sit under my new line.
+MF07 is real Arabic writing, and the route should tell that writer "we can
+only check English" instead of scoring them with an English-only model.
+*Why I stopped:* this was my runner-up improvement (16 → 13 broke, no side
+effects), but it fixes the smallest problem, and I chose the writers being
+accused.
+
+**RQ06 (object written into `creator_id`).** *What I'd do:* a two-line
+route check: if `creator_id` isn't a string, return 400 (or treat it as
+missing). The limiter already does this check, so the log and the limiter
+would finally agree on who the caller is. *Why I stopped:* the one-change
+rule, not difficulty. It's the first thing I'd fix next.
 
 **The trade I'd make if this ran for real:**
 
 <!-- Two sentences. Fewer wrong accusations means more AI text getting through.
      Say which way you'd go and WHO PAYS FOR IT. -->
 
+I'd keep the AI line at 0.80 and accept more AI text coming back "unsure",
+because a wrong accusation falls on one real writer, most often the plain,
+careful, or second-language writer like FP03, who has the least power to
+argue back. The people who pay are the honest writers competing against
+AI-assisted work that now gets "unsure" instead of "AI", and the human
+reviewers who have to work through a much bigger unsure pile.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════
