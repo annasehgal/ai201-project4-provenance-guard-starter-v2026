@@ -769,21 +769,139 @@ caught the flood rows.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** one line in `config.py`, raising `AI_THRESHOLD` from
+**0.70 to 0.80**. Nothing else moved: same signals, same 50/50 weights, same
+`HUMAN_THRESHOLD` (0.35), same labels. Every score in the after run is
+identical to the before run to four decimals. Only the line that turns a score
+into the AI label moved.
 
-**Which diagnosis pointed at it:**
+**Which diagnosis pointed at it:** the false accusations, my main pattern and
+my worst outcome. FP02–FP06 (including FP03) are plain human writing that
+scored **0.703–0.777**, because both signals read plainness as AI. Before
+choosing, I simulated each candidate single change on my recorded scores.
+Lowering the model's weight to 0.4 fixed only 2 of the 5, because FP03 and
+FP04 are high on *both* signals. 0.75 fixed 3 of 5 and still accused FP03.
+0.80 is the lowest round threshold above all five. The other honest option,
+moving `HUMAN_THRESHOLD` up to fix criterion 3, would have made the attack
+results worse (16 → 17 broke), so I put the writers first. On a writing site
+a wrong accusation costs more than a miss, which is what my criterion 1 says.
 
 ### Attack Run — After
 
 <!-- Same format. `run_attacks.py --label after` -->
 
+Full run: `results/attack_run_2026-11-04_1904_after.md` (`run_attacks.py::main`,
+same 56 attacks, same held/broke rules as before).
 
+| Family | Before: held / broke | After: held / broke | Change |
+|---|---|---|---|
+| evasion | 4 / 6 | 1 / **9** | **+3 broke** (EV03, EV09, EV10) |
+| false_positive | 3 / 5 | **8 / 0** | **all 5 fixed** |
+| prompt_injection | 6 / 0 | 6 / 0 | — |
+| malformed | 15 / 5 | 17 / 3 | MF06, MF07 fixed |
+| flood_same_creator | 12 / 0 | 12 / 0 | — |
+| **Total** | **40 / 16** | **44 / 12** | **−4 broke** |
+
+Every attack whose result changed (scores are identical; only the label moved):
+
+| ID | Targeting | Score | Before | After | Verdict before → after |
+|---|---|---|---|---|---|
+| FP02 | human writing in a formal register | 0.703 | ai | unsure | BROKE → **HELD** |
+| FP03 | a non-native English speaker writing carefully | 0.772 | ai | unsure | BROKE → **HELD** |
+| FP04 | a student essay written to a rubric | 0.777 | ai | unsure | BROKE → **HELD** |
+| FP05 | technical documentation written by a person | 0.734 | ai | unsure | BROKE → **HELD** |
+| FP06 | a person imitating a formal template | 0.713 | ai | unsure | BROKE → **HELD** |
+| MF06 | text is emoji only | 0.749 | ai | unsure | BROKE → **HELD** |
+| MF07 | text is right-to-left script (Arabic) | 0.703 | ai | unsure | BROKE → **HELD** |
+| EV03 | signal two: a pasted quotation changes the shape | 0.739 | ai | unsure | HELD → **BROKE** |
+| EV09 | both: AI text with a human opening paragraph | 0.795 | ai | unsure | HELD → **BROKE** |
+| EV10 | signal two: repeated stanza structure | 0.797 | ai | unsure | HELD → **BROKE** |
+| PI03 | instruction wrapped in the writer's voice | 0.748 | ai | unsure | HELD → HELD* |
+
+\* PI03's score didn't change, so the instruction still did nothing and it
+stays HELD under my rule. But the attacker now gets "unsure" instead of "AI",
+because of my threshold, not because of their instruction.
+
+Still broken after: EV01, EV02, EV03, EV05–EV10 (9 evasions), MF04 (punctuation
+→ human), MF05 (`aaaa…` → ai at 0.916), RQ06 (object in `creator_id`).
+
+### Run Log — After
+
+`run_eval.py --label after` → `results/run_2026-11-04_1904_after.md`;
+`run_extra_checks.py --label after` → `results/extra_checks_2026-11-04_1905_after.md`.
+Three trials each, identical within each run. My first `run_extra_checks.py`
+attempt ran straight after the attack set, and its non-object body (which has
+no `creator_id`, so it counts against my IP address) got 429 in all three
+trials, because the attack rows had just used up that address's 5 per minute.
+That was my test colliding with my own rate limit, not the change, so I
+discarded it, waited a minute, and re-ran: 400 in all three.
+
+| Criterion | Target | Before (×3) | After Run 1 | After Run 2 | After Run 3 | Verdict before → after |
+|---|---|---|---|---|---|---|
+| 1. My own writing labelled AI | ≤ 2 of 10 | 1/10 | **0/10** | 0/10 | 0/10 | MET → **MET** (better) |
+| 2. AI mean minus human mean | ≥ 0.30 | 0.355 | 0.355 | 0.355 | 0.355 | MET → MET (scores unchanged) |
+| 3. Each label ≥ 2 times in 9 inputs | 3 of 3 | 2/3 (ai 5, unsure 4, human 0) | 2/3 (ai 3, unsure 6, human 0) | 2/3 | 2/3 | MISSED → **MISSED** |
+| 4. Appeals work; fake id → 404 | 5/5 + 404 | 5/5 + 404 | 5/5 + 404 | 5/5 + 404 | 5/5 + 404 | MET → MET |
+| 5. Bad requests → 400, none 500 | 4 of 4 | 4/4 | 4/4 | 4/4 | 4/4 | MET → MET |
+
+Real output, trial 1 of the after run (`run_eval.py::main`), criterion 1.
+Piece 2, accused before at 0.7408, is now `unsure`:
+
+```json
+[
+  {"status": 200, "guess": "unsure", "confidence": 0.4823, "model_score": 0.5583, "style_score": 0.4063, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "As I started my university, I realized I did belong at CSU Chico; the "},
+  {"status": 200, "guess": "unsure", "confidence": 0.7408, "model_score": 0.6735, "style_score": 0.808, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "There is beauty in smiling after going through a rough patch. I truly "},
+  {"status": 200, "guess": "unsure", "confidence": 0.4763, "model_score": 0.48, "style_score": 0.4727, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "Why is that we compare ourselves to something else, when they say that"},
+  {"status": 200, "guess": "unsure", "confidence": 0.3578, "model_score": 0.2498, "style_score": 0.4657, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I love how our fandom consists of people from different backgrounds. I"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5379, "model_score": 0.5135, "style_score": 0.5624, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I actually hated the color Blue for a long time. I have a whole story "},
+  {"status": 200, "guess": "unsure", "confidence": 0.4948, "model_score": 0.4947, "style_score": 0.4948, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I never like loud areas which filled with too many people, however con"},
+  {"status": 200, "guess": "unsure", "confidence": 0.559, "model_score": 0.407, "style_score": 0.7111, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "Research is objectively the hardest and easiest thing you could you po"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5486, "model_score": 0.3564, "style_score": 0.7409, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I think computer science is a cool subject to learn, regardless of whi"},
+  {"status": 200, "guess": "unsure", "confidence": 0.6224, "model_score": 0.8394, "style_score": 0.4054, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "i dont know what i am writing. I dont know why am i writing this, nor "},
+  {"status": 200, "guess": "unsure", "confidence": 0.5789, "model_score": 0.6859, "style_score": 0.472, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I haven't talked to some people in many days, and I think it is fine. "}
+]
+```
+
+Criterion 3, trial 1. Same scores as before; the two borderline AI texts
+(0.779, 0.761) dropped from `ai` to `unsure`, and `human` is still missing:
+
+```json
+[
+  {"status": 200, "guess": "ai", "confidence": 0.8777, "model_score": 0.8015, "style_score": 0.9538, "label": "Our check suggests this was likely generated with AI. Automated checks can be wrong — if you wrote this yourself, you can ask for a review and a person will look at it.", "sent": "Time management is a critical skill that can significantly impact both"},
+  {"status": 200, "guess": "ai", "confidence": 0.8092, "model_score": 0.7832, "style_score": 0.8352, "label": "Our check suggests this was likely generated with AI. Automated checks can be wrong — if you wrote this yourself, you can ask for a review and a person will look at it.", "sent": "Reading offers numerous benefits that extend far beyond simple enterta"},
+  {"status": 200, "guess": "ai", "confidence": 0.8163, "model_score": 0.7831, "style_score": 0.8494, "label": "Our check suggests this was likely generated with AI. Automated checks can be wrong — if you wrote this yourself, you can ask for a review and a person will look at it.", "sent": "Teamwork is a fundamental component of success in any organization. Wh"},
+  {"status": 200, "guess": "unsure", "confidence": 0.4948, "model_score": 0.4947, "style_score": 0.4948, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I never like loud areas which filled with too many people, however con"},
+  {"status": 200, "guess": "unsure", "confidence": 0.559, "model_score": 0.407, "style_score": 0.7111, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "Research is objectively the hardest and easiest thing you could you po"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5486, "model_score": 0.3564, "style_score": 0.7409, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "I think computer science is a cool subject to learn, regardless of whi"},
+  {"status": 200, "guess": "unsure", "confidence": 0.4216, "model_score": 0.3489, "style_score": 0.4944, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "Time management matters more than people admit, especially now that wo"},
+  {"status": 200, "guess": "unsure", "confidence": 0.7794, "model_score": 0.7256, "style_score": 0.8332, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "Effective time management matters a lot in today's fast-paced work env"},
+  {"status": 200, "guess": "unsure", "confidence": 0.761, "model_score": 0.7259, "style_score": 0.796, "label": "Our check gave mixed results on this piece, so we're not making a call. If you'd like a person to look at it, you can ask for a review.", "sent": "Reading is good for you in more ways than just being fun. If you read "}
+]
+```
 
 **Did it help, and how do I know:**
 
 <!-- Widening the unsure band usually fixes one problem and creates another.
      Reporting that trade honestly is worth full credit. -->
 
+**Yes for writers, at a real cost on AI text: no real writer in either test
+set is labelled AI any more, but 3 more AI attacks, and 2 of my 5
+clearly-AI criterion 2 texts, now get "unsure" instead of "AI."** Overall
+broke went from 16 to 12, every false accusation in the attack set is fixed
+(including my worst outcome, FP03), and criterion 1 went from 1/10 to 0/10.
+
+The trade, honestly: the unsure band is now 0.35–0.80, almost half the scale.
+Evasions got worse (6 → 9), and 2 of the 5 clearly-AI texts in criterion 2
+(0.780, 0.729) and the two borderline-AI texts in criterion 3 now come back
+"unsure" too. AI text now has to be obvious to *both* signals to be labelled.
+For a writing site I think that's the right side to err on, because "unsure"
+offers a review and accuses no one. But it means the AI label now catches
+less, and an attacker only needs to land under 0.80.
+
+What it didn't fix: **criterion 3 is still missed.** Raising the AI line does
+nothing for the human side, so `human` is still unreachable for my writing.
+That's signal two's floor (diagnosis 1), and it needs a signal fix, not a
+threshold. MF04, MF05 and RQ06 are route problems a threshold can't touch.
 
 
 ---
